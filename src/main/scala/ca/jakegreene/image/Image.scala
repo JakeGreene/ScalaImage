@@ -5,13 +5,13 @@ import breeze.linalg.Matrix
 object Image {
   case class RGBA(red: Int, green: Int, blue: Int, alpha: Int)
   
-  case class ColourComponent(position: Int)
-  val Red = ColourComponent(0)
-  val Green = ColourComponent(1)
-  val Blue = ColourComponent(2)
-  val Alpha = ColourComponent(3)
+  sealed trait ColourComponent { def position: Int }
+  case object Red extends ColourComponent { def position = 0 }
+  case object Green extends ColourComponent { def position = 1 }
+  case object Blue extends ColourComponent { def position = 2 }
+  case object Alpha extends ColourComponent { def position = 3 }
   
-  private val mask = 0xff
+  private val componentMask = 0xff
   // 0xffffffff
   private val fullMask = ((1l << (componentSize*numComponents)) - 1)
   private val componentSize = 8
@@ -22,7 +22,35 @@ object Image {
    */
   private[image] def extract(component: ColourComponent)(rgba: Int): Int = {
     val shift = (numComponents - component.position - 1) * componentSize
-    return (rgba >> shift) & mask
+    return (rgba >> shift) & componentMask
+  }
+  
+  private val notRedMask = (componentMask << 16) | (componentMask << 8) | componentMask
+  private val notGreenMask  = (componentMask << 24) | (componentMask << 8) | componentMask
+  private val notBlueMask = (componentMask << 24) | (componentMask << 16) | componentMask
+  private val notAlphaMask = (componentMask << 24) | (componentMask << 16) | (componentMask << 8)
+  private[image] def change(component: ColourComponent)(rgba:Int, value: Int): Int = {
+    val mask = component match {
+      case Red => notRedMask
+      case Green => notGreenMask
+      case Blue => notBlueMask
+      case Alpha => notAlphaMask
+    }
+    val previousComponents = rgba & mask
+    val shift = (numComponents - component.position - 1) * componentSize
+    return (value << shift) + previousComponents 
+  }
+  
+  private[image] def colour(rgba: Int): RGBA = {
+    val red = extract(Red)(rgba)
+    val green = extract(Green)(rgba)
+    val blue = extract(Blue)(rgba)
+    val alpha = extract(Alpha)(rgba)
+    return RGBA(red, green, blue, alpha)
+  }
+  
+  private[image] def colour(rgba: RGBA): Int = {
+    return (rgba.red << 24) | (rgba.green << 16) | (rgba.blue << 8) | rgba.alpha
   }
 }
 
